@@ -1,8 +1,7 @@
-
 import socket
 
 
-# Envia um comando para o servidor
+# Envia comandos para o servidor
 def execute_remote(comando):
     cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -15,12 +14,32 @@ def execute_remote(comando):
     return resposta
 
 
-# Permite digitar os comandos
+# Menu do cliente
 while True:
-    comando = input("Digite POP, is_empty, PRINT_SIZE ou SAIR: ")
+    print("\n===== MENU DA PILHA =====")
+    print("PUSH - Inserir palavra")
+    print("POP - Remover palavra")
+    print("UNDO - Desfazer ultima acao")
+    print("REDO - Refazer ultima acao")
+    print("LISTAR - Mostrar pilha")
+    print("IS_EMPTY - Verificar se esta vazia")
+    print("PRINT_SIZE - Mostrar tamanho")
+    print("SAIR - Encerrar")
 
-    if comando.upper() == "SAIR":
+    comando = input("\nDigite um comando: ").strip().upper()
+
+    if comando == "SAIR":
+        print("Cliente encerrado!")
         break
 
+    if comando == "PUSH":
+        palavra = input("Digite a palavra: ")
+
+        if not palavra.strip():
+            print("Digite uma palavra valida!")
+            continue
+
+        comando = "PUSH " + palavra
+
     resultado = execute_remote(comando)
-    print("Resultado:", resultado)
+    print("\nResultado:", resultado)

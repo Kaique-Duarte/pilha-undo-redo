@@ -1,5 +1,5 @@
+
 import socket
-import threading
 
 # Cria um nó da pilha
 def initialize_node(value):
@@ -17,12 +17,12 @@ def initialize_stack():
     }
 
 
-# Verifica se a pilha está vazia
+# Verifica se está vazia
 def is_empty(stack):
     return stack['top'] is None
 
 
-# Insere um elemento no topo da pilha
+# Insere na pilha
 def push(stack, value):
     new_node = initialize_node(value)
     new_node['next'] = stack['top']
@@ -30,10 +30,10 @@ def push(stack, value):
     stack['size'] += 1
 
 
-# Remove o elemento do topo
+# Remove da pilha
 def pop(stack):
     if is_empty(stack):
-        return "erro: stack is empty"
+        return "Pilha vazia"
 
     removed_node = stack['top']
     stack['top'] = removed_node['next']
@@ -42,46 +42,121 @@ def pop(stack):
     return removed_node['value']
 
 
-# Cria a pilha
+# Cria a pilha e os históricos
 pilha = initialize_stack()
+historico = []
+refazer = []
 
 
-# Recebe os comandos do cliente
-def receber_comandos():
-    servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    servidor.bind(("127.0.0.1", 2567))
-    servidor.listen()
+# Desfaz a última ação
+def undo():
+    if not historico:
+        return "Nenhuma acao para desfazer"
 
-    print("Servidor iniciado na porta 2567!")
+    acao, palavra = historico.pop()
 
-    while True:
-        conexao, endereco = servidor.accept()
+    if acao == "PUSH":
+        pop(pilha)
+        resposta = f"UNDO: '{palavra}' removida"
 
-        with conexao:
-            comando = conexao.recv(1024).decode().strip().upper()
+    else:
+        push(pilha, palavra)
+        resposta = f"UNDO: '{palavra}' recuperada"
 
-            if comando == "POP":
-                resposta = pop(pilha)
-
-            elif comando == "IS_EMPTY":
-                resposta = str(is_empty(pilha))
-
-            elif comando == "PRINT_SIZE":
-                resposta = str(pilha['size'])
-
-            else:
-                resposta = "Comando invalido"
-
-            conexao.sendall(resposta.encode())
+    refazer.append((acao, palavra))
+    return resposta
 
 
-# Inicia o Socket em uma thread
-threading.Thread(target=receber_comandos, daemon=True).start()
+# Refaz a última ação desfeita
+def redo():
+    if not refazer:
+        return "Nenhuma acao para refazer"
+
+    acao, palavra = refazer.pop()
+
+    if acao == "PUSH":
+        push(pilha, palavra)
+        resposta = f"REDO: '{palavra}' inserida novamente"
+
+    else:
+        pop(pilha)
+        resposta = f"REDO: '{palavra}' removida novamente"
+
+    historico.append((acao, palavra))
+    return resposta
 
 
-# Permite inserir palavras na pilha
+# Lista os elementos
+def listar():
+    elementos = []
+    atual = pilha['top']
+
+    while atual is not None:
+        elementos.append(str(atual['value']))
+        atual = atual['next']
+
+    if elementos:
+        return " -> ".join(elementos)
+
+    return "Pilha vazia"
+
+
+# Executa os comandos recebidos
+def executar_comando(requisicao):
+    partes = requisicao.strip().split(" ", 1)
+    comando = partes[0].upper()
+
+    if comando == "PUSH":
+        if len(partes) < 2 or not partes[1].strip():
+            return "Digite uma palavra"
+
+        palavra = partes[1].strip()
+        push(pilha, palavra)
+        historico.append(("PUSH", palavra))
+        refazer.clear()
+        return f"'{palavra}' inserida!"
+
+    elif comando == "POP":
+        if is_empty(pilha):
+            return "Pilha vazia"
+
+        palavra = pop(pilha)
+        historico.append(("POP", palavra))
+        refazer.clear()
+        return f"'{palavra}' removida!"
+
+    elif comando == "UNDO":
+        return undo()
+
+    elif comando == "REDO":
+        return redo()
+
+    elif comando == "LISTAR":
+        return listar()
+
+    elif comando == "IS_EMPTY":
+        return str(is_empty(pilha))
+
+    elif comando == "PRINT_SIZE":
+        return str(pilha['size'])
+
+    else:
+        return "Comando invalido"
+
+
+# Inicia o servidor Socket
+servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+servidor.bind(("127.0.0.1", 2567))
+servidor.listen()
+
+print("Servidor iniciado na porta 2567!")
+print("Aguardando comandos do cliente...")
+
 while True:
-    palavra = input("Digite uma palavra para PUSH: ")
-    push(pilha, palavra)
-    print("Palavra inserida!")
+    conexao, endereco = servidor.accept()
 
+    with conexao:
+        comando = conexao.recv(1024).decode()
+        resposta = executar_comando(comando)
+        conexao.sendall(resposta.encode())
