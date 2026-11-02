@@ -1,5 +1,5 @@
-
 import socket
+
 
 # Cria um nó da pilha
 def initialize_node(value):
@@ -42,63 +42,69 @@ def pop(stack):
     return removed_node['value']
 
 
-# Cria a pilha e os históricos
+# Esvazia uma pilha
+def clear(stack):
+    stack['top'] = None
+    stack['size'] = 0
+
+
+# Cria a pilha principal e as pilhas de histórico (undo/redo)
 pilha = initialize_stack()
-historico = []
-refazer = []
+historico = initialize_stack()
+refazer = initialize_stack()
 
 
 # Desfaz a última ação
 def undo():
-    if not historico:
+    if is_empty(historico):
         return "Nenhuma acao para desfazer"
 
-    acao, palavra = historico.pop()
+    acao, palavra = pop(historico)
 
     if acao == "PUSH":
         pop(pilha)
         resposta = f"UNDO: '{palavra}' removida"
-
     else:
         push(pilha, palavra)
         resposta = f"UNDO: '{palavra}' recuperada"
 
-    refazer.append((acao, palavra))
+    push(refazer, (acao, palavra))
     return resposta
 
 
 # Refaz a última ação desfeita
 def redo():
-    if not refazer:
+    if is_empty(refazer):
         return "Nenhuma acao para refazer"
 
-    acao, palavra = refazer.pop()
+    acao, palavra = pop(refazer)
 
     if acao == "PUSH":
         push(pilha, palavra)
         resposta = f"REDO: '{palavra}' inserida novamente"
-
     else:
         pop(pilha)
         resposta = f"REDO: '{palavra}' removida novamente"
 
-    historico.append((acao, palavra))
+    push(historico, (acao, palavra))
     return resposta
 
 
-# Lista os elementos
+# Lista os elementos (topo -> base)
 def listar():
-    elementos = []
     atual = pilha['top']
 
+    if atual is None:
+        return "Pilha vazia"
+
+    resultado = str(atual['value'])
+    atual = atual['next']
+
     while atual is not None:
-        elementos.append(str(atual['value']))
+        resultado += " -> " + str(atual['value'])
         atual = atual['next']
 
-    if elementos:
-        return " -> ".join(elementos)
-
-    return "Pilha vazia"
+    return resultado
 
 
 # Executa os comandos recebidos
@@ -112,8 +118,8 @@ def executar_comando(requisicao):
 
         palavra = partes[1].strip()
         push(pilha, palavra)
-        historico.append(("PUSH", palavra))
-        refazer.clear()
+        push(historico, ("PUSH", palavra))
+        clear(refazer)
         return f"'{palavra}' inserida!"
 
     elif comando == "POP":
@@ -121,8 +127,8 @@ def executar_comando(requisicao):
             return "Pilha vazia"
 
         palavra = pop(pilha)
-        historico.append(("POP", palavra))
-        refazer.clear()
+        push(historico, ("POP", palavra))
+        clear(refazer)
         return f"'{palavra}' removida!"
 
     elif comando == "UNDO":
