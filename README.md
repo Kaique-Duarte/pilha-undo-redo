@@ -1,164 +1,165 @@
 # Pilha Encadeada com UNDO/REDO e Sockets TCP
 
-Projeto desenvolvido para a disciplina de **Estrutura de Dados I**, utilizando **Python**.
+Projeto acadêmico desenvolvido em **Python** para a disciplina de **Estrutura de Dados I**.
 
 ## Objetivo
 
-Implementar uma **pilha encadeada** e demonstrar suas operações fundamentais, aplicando o princípio **LIFO (Last In, First Out)**: o último elemento inserido é o primeiro a ser removido.
+Implementar uma **pilha encadeada** e demonstrar suas operações fundamentais, aplicando o princípio **LIFO** (*Last In, First Out*): o último elemento inserido é o primeiro a ser removido.
 
-Além das operações básicas, o projeto permite **desfazer (UNDO)** e **refazer (REDO)** alterações e utiliza **Sockets TCP** para a comunicação entre dois programas: um cliente e um servidor.
+Além das operações básicas, o projeto implementa **UNDO** (desfazer) e **REDO** (refazer), usando outras duas pilhas encadeadas, e estabelece a comunicação entre dois programas por meio de **Sockets TCP**.
 
-> **A estrutura principal do trabalho é a pilha encadeada.** A comunicação TCP é o meio de interação entre os programas; UNDO e REDO são funcionalidades adicionais.
+> **O foco do trabalho é a estrutura de dados PILHA.** O Socket TCP permite a comunicação entre cliente e servidor, enquanto UNDO e REDO demonstram uma aplicação prática de pilhas.
 
-## Como a pilha funciona
+## Como a pilha foi implementada
 
-Cada elemento é representado por um nó com dois campos:
+A implementação **não utiliza listas nativas do Python como pilhas**. Cada nó é representado por um dicionário com:
 
-- `value`: armazena a palavra;
-- `next`: aponta para o próximo nó da pilha.
+- `value`: dado armazenado no nó (palavra ou registro de operação);
+- `next`: referência ao próximo nó, em direção à base da pilha.
 
-A pilha mantém uma referência ao topo (`top`) e a quantidade de elementos (`size`). As inserções e remoções ocorrem **sempre pelo topo**.
+Cada pilha mantém também:
 
-Exemplo:
+- `top`: referência ao nó do topo;
+- `size`: quantidade de elementos.
 
-```text
-PUSH A       A
-PUSH B       B -> A
-PUSH C       C -> B -> A
-POP          B -> A       (remove C)
-```
+As funções `initialize_node()`, `initialize_stack()`, `push()`, `pop()` e `is_empty()` são reutilizadas nas três pilhas.
+
+### As três pilhas encadeadas
+
+| Pilha | Finalidade |
+| --- | --- |
+| `pilha` | Armazena as palavras inseridas pelo usuário. |
+| `historico` | Registra as operações `PUSH` e `POP` realizadas. |
+| `refazer` | Guarda operações desfeitas que podem ser refeitas. |
+
+As três são criadas com `initialize_stack()`. Os históricos armazenam registros como `("PUSH", "ola")`, usando os mesmos nós encadeados da pilha principal.
 
 ## Funcionalidades
 
 | Comando | O que faz |
 | --- | --- |
 | `PUSH` | Insere uma palavra no topo da pilha. |
-| `POP` | Remove e retorna a palavra do topo. |
-| `LISTAR` | Mostra os elementos do topo até a base. |
-| `IS_EMPTY` | Informa se a pilha está vazia (`True` ou `False`). |
-| `PRINT_SIZE` | Mostra a quantidade de elementos. |
+| `POP` | Remove a palavra do topo. |
 | `UNDO` | Desfaz a última inserção ou remoção. |
-| `REDO` | Refaz a última ação desfeita. |
+| `REDO` | Refaz a última operação desfeita. |
+| `LISTAR` | Exibe os elementos do topo para a base. |
+| `IS_EMPTY` | Informa se a pilha está vazia (`True` ou `False`). |
+| `PRINT_SIZE` | Exibe a quantidade de elementos. |
 | `SAIR` | Encerra o programa cliente. |
 
-O servidor utiliza duas listas auxiliares, `historico` e `refazer`, para registrar as operações de UNDO e REDO. **A pilha principal, porém, é implementada com nós encadeados**, e não com uma lista pronta do Python.
+### Como funcionam UNDO e REDO?
 
-## Organização dos arquivos
+Quando ocorre um `PUSH` ou `POP`, o servidor registra a operação em `historico` por meio de `push(historico, ...)`.
+
+- **UNDO:** retira a última operação de `historico` com `pop(historico)`, executa sua ação inversa e a guarda em `refazer`.
+- **REDO:** retira a última operação de `refazer`, executa-a novamente e a devolve para `historico`.
+- **Nova alteração:** um novo `PUSH` ou `POP` executa `clear(refazer)`, invalidando a sequência anterior de refazer.
+
+A função `clear()` esvazia uma pilha, definindo `top` como `None` e `size` como `0`.
+
+## Comunicação cliente-servidor
+
+O projeto contém dois arquivos Python:
+
+- **`Servidor.py`**: mantém as três pilhas na memória, interpreta os comandos e executa as operações.
+- **`Cliente.py`**: apresenta o menu, recebe os comandos do usuário e exibe as respostas do servidor.
+
+A comunicação utiliza **TCP** (`socket.AF_INET` e `socket.SOCK_STREAM`) com:
+
+- **Endereço IP:** `127.0.0.1` (o próprio computador);
+- **Porta:** `2567`.
+
+Fluxo simplificado:
 
 ```text
-pilha-undo-redo/
-├── Servidor.py    # Implementação da pilha, histórico e servidor TCP
-├── Cliente.py     # Menu interativo e envio dos comandos
-└── README.md      # Documentação do projeto
+Usuário → Cliente.py → Socket TCP → Servidor.py
+                                      ↓
+                               Operação na pilha
+                                      ↓
+Usuário ← Cliente.py ← Socket TCP ← Resposta
 ```
-
-## Comunicação TCP/IP
-
-O cliente envia os comandos ao servidor por meio de **Sockets TCP**.
-
-- **IP:** `127.0.0.1` — endereço de loopback, que representa o próprio computador.
-- **Porta:** `2567` — porta na qual o servidor aguarda conexões.
-- **Protocolo:** TCP (`socket.SOCK_STREAM`).
-
-Fluxo de uma operação:
-
-```text
-Usuário digita um comando no Cliente.py
-                 |
-                 v
-     Cliente envia via TCP
-       127.0.0.1:2567
-                 |
-                 v
-Servidor recebe e executa na pilha
-                 |
-                 v
-Servidor devolve a resposta via TCP
-                 |
-                 v
-    Cliente mostra o resultado
-```
-
-O cliente e o servidor podem ser executados **no mesmo computador**, em dois terminais separados.
 
 ## Requisitos
 
-- **Python 3** instalado;
-- Windows, Linux ou macOS;
-- Terminal (CMD, PowerShell ou equivalente).
+- Python 3 instalado;
+- Terminal ou Prompt de Comando (CMD) do Windows;
+- Os arquivos `Servidor.py` e `Cliente.py` na mesma pasta.
 
-**Não é necessário instalar bibliotecas externas.** O módulo `socket` já faz parte da biblioteca padrão do Python.
+Não é necessário instalar bibliotecas externas: o projeto usa o módulo `socket`, incluído no Python.
 
 ## Como executar
 
-1. Baixe ou clone o repositório e abra a pasta que contém `Servidor.py` e `Cliente.py`.
-2. Abra um terminal nessa pasta e inicie o servidor:
+Abra **dois terminais** na pasta do projeto. No Windows, é possível abrir a pasta no Explorador de Arquivos, digitar `cmd` na barra de endereço e pressionar Enter.
 
-   ```bash
-   python Servidor.py
-   ```
+**Terminal 1 — iniciar o servidor:**
 
-   No Windows, você também pode usar `py Servidor.py`.
+```bash
+py Servidor.py
+```
 
-   A mensagem esperada é:
+Mensagem esperada:
 
-   ```text
-   Servidor iniciado na porta 2567!
-   Aguardando comandos do cliente...
-   ```
+```text
+Servidor iniciado na porta 2567!
+Aguardando comandos do cliente...
+```
 
-3. **Mantenha o servidor aberto.** Abra um **segundo terminal**, na mesma pasta, e execute:
+**Terminal 2 — iniciar o cliente:**
 
-   ```bash
-   python Cliente.py
-   ```
+```bash
+py Cliente.py
+```
 
-   No Windows, também é possível usar `py Cliente.py`.
+O menu aparecerá no cliente. Digite os comandos por ele; não é necessário digitar operações no terminal do servidor.
 
-4. Digite os comandos no menu do cliente. Para `PUSH`, o programa solicitará a palavra a inserir.
-
-> **Importante:** inicie o servidor **antes** do cliente. O servidor precisa continuar aberto enquanto os comandos são executados.
+> Em sistemas onde o comando `py` não está disponível, utilize `python Servidor.py` e `python Cliente.py`.
 
 ## Exemplo de utilização
 
-No menu do cliente, faça a sequência abaixo:
+Com o servidor recém-iniciado:
 
-| Ação no cliente | Resultado esperado |
-| --- | --- |
-| `PUSH` e palavra `ola` | `'ola' inserida!` |
-| `PUSH` e palavra `mundo` | `'mundo' inserida!` |
-| `LISTAR` | `mundo -> ola` |
-| `PRINT_SIZE` | `2` |
-| `POP` | `'mundo' removida!` |
-| `UNDO` | `UNDO: 'mundo' recuperada` |
-| `LISTAR` | `mundo -> ola` |
-| `REDO` | `REDO: 'mundo' removida novamente` |
-| `IS_EMPTY` | `False` |
+```text
+Comando: PUSH
+Digite a palavra: ola
+Resultado: 'ola' inserida!
 
-**Como funcionam UNDO e REDO?**
+Comando: PUSH
+Digite a palavra: mundo
+Resultado: 'mundo' inserida!
 
-- Se a última ação foi um `PUSH`, `UNDO` remove o elemento inserido.
-- Se a última ação foi um `POP`, `UNDO` reinsere o elemento removido.
-- `REDO` reaplica a última ação desfeita.
-- Um novo `PUSH` ou `POP` limpa a possibilidade de refazer ações anteriores.
+Comando: LISTAR
+Resultado: mundo -> ola
 
-## Limitações desta versão
+Comando: UNDO
+Resultado: UNDO: 'mundo' removida
 
-- Os dados ficam **somente na memória**: ao reiniciar o servidor, a pilha e os históricos são reiniciados.
-- O servidor processa **uma conexão por vez**.
-- A comunicação foi configurada para execução **local** (`127.0.0.1`).
-- Se o servidor não estiver em execução, o cliente não conseguirá estabelecer a conexão.
+Comando: LISTAR
+Resultado: ola
 
-## Conceitos aplicados
+Comando: REDO
+Resultado: REDO: 'mundo' inserida novamente
 
-**Estruturas de dados:** pilha, nós encadeados, LIFO, inserção e remoção pelo topo.
+Comando: PRINT_SIZE
+Resultado: 2
+```
 
-**Programação:** funções, dicionários, listas auxiliares, estruturas condicionais e de repetição.
+## Organização do repositório
 
-**Redes:** arquitetura cliente-servidor, Socket TCP, endereço IP e porta.
+```text
+pilha-undo-redo/
+├── Cliente.py
+├── Servidor.py
+├── README.md
+└── LICENSE
+```
 
----
+## Limitações e possibilidades de melhoria
 
-**Disciplina:** Estrutura de Dados I  
-**Linguagem:** Python  
-**Projeto acadêmico desenvolvido em grupo.**
+- Os dados permanecem **somente na memória** e são perdidos quando o servidor é encerrado.
+- O servidor atende **uma conexão por vez**.
+- O endereço `127.0.0.1` permite a comunicação local, no mesmo computador.
+- Uma evolução possível seria adicionar persistência em arquivo, tratamento de falhas de conexão e atendimento simultâneo de clientes.
+
+## Conclusão
+
+O projeto demonstra o funcionamento de uma **pilha encadeada**, suas operações LIFO e sua reutilização em **três estruturas independentes**: a pilha de dados, a pilha de histórico e a pilha de refazer. A comunicação por Socket TCP permite executar essas operações a partir de um programa cliente separado.
